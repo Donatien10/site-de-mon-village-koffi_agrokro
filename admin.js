@@ -1,0 +1,6 @@
+const KEY='koffiAgrokroMemorialsV1';const form=document.querySelector('#personForm'),list=document.querySelector('#adminList');
+const read=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch{return []}};
+const write=x=>localStorage.setItem(KEY,JSON.stringify(x));
+const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function render(){const data=read();list.innerHTML=data.length?data.map((p,i)=>`<div class="admin-item"><span><strong>${esc(p.name)}</strong> · décès : ${esc(p.death||'non renseigné')}</span><button class="delete-btn" data-index="${i}">Supprimer</button></div>`).join(''):'<p class="admin-help">Aucune fiche enregistrée pour le moment.</p>';list.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{if(confirm('Supprimer cette fiche ?')){const d=read();d.splice(Number(b.dataset.index),1);write(d);render()}}))}
+form.addEventListener('submit',e=>{e.preventDefault();const f=new FormData(form),p=Object.fromEntries(f.entries());if(p.birth&&p.death&&p.death<p.birth){alert('La date de décès ne peut pas précéder la date de naissance.');return}const d=read();d.unshift(p);write(d);form.reset();render();alert('Fiche enregistrée sur cet appareil.')});render();
