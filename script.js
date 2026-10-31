@@ -1,12 +1,176 @@
-const KEY='koffiAgrokroMemorialsV1';
-const $=s=>document.querySelector(s);
-$('#year').textContent=new Date().getFullYear();
-$('#menuToggle').addEventListener('click',()=>$('#mainNav').classList.toggle('open'));
-document.querySelectorAll('#mainNav a').forEach(a=>a.addEventListener('click',()=>$('#mainNav').classList.remove('open')));
-function getPeople(){try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch{return []}}
-function ageAtBirth(birth,death){if(!birth||!death)return null;const b=new Date(birth+'T00:00:00'),d=new Date(death+'T00:00:00');if(isNaN(b)||isNaN(d)||d<b)return null;let age=d.getFullYear()-b.getFullYear();if(d.getMonth()<b.getMonth()||(d.getMonth()===b.getMonth()&&d.getDate()<b.getDate()))age--;return age}
-function formatDate(v){if(!v)return 'Non renseignée';return new Date(v+'T00:00:00').toLocaleDateString('fr-FR')}
-function renderMemorial(){const grid=$('#memorialGrid');if(!grid)return;const q=$('#memorialSearch').value.trim().toLowerCase();const people=getPeople().filter(p=>(p.name+' '+(p.place||'')).toLowerCase().includes(q));$('#memorialCount').textContent=people.length+' hommage'+(people.length>1?'s':'');if(!people.length){grid.innerHTML='<div class="empty-state">Aucune fiche trouvée. Les hommages validés apparaîtront ici.</div>';return}grid.innerHTML=people.map(p=>{const age=ageAtBirth(p.birth,p.death);return `<article class="memorial-card">${p.photo?`<img class="memorial-photo" src="${p.photo}" alt="Portrait de ${escapeHtml(p.name)}">`:'<div class="memorial-photo" aria-hidden="true"></div>'}<div><h3>${escapeHtml(p.name)}</h3><p>Naissance : ${formatDate(p.birth)}</p><p>Décès : ${formatDate(p.death)}</p><p><strong>${age===null?'Âge non calculable':age+' ans'}</strong></p>${p.place?`<p>${escapeHtml(p.place)}</p>`:''}${p.note?`<p>${escapeHtml(p.note)}</p>`:''}</div></article>`}).join('')}
-function escapeHtml(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-if($('#memorialSearch'))$('#memorialSearch').addEventListener('input',renderMemorial);
+
+const KEY = 'koffiAgrokroMemorialsV1';
+
+const $ = selector => document.querySelector(selector);
+
+function readPeople() {
+  try {
+    return JSON.parse(localStorage.getItem(KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function escapeHTML(value = '') {
+  return String(value).replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+}
+
+function calculateAge(birth, death) {
+  if (!birth || !death) return null;
+
+  const b = new Date(birth + 'T00:00:00');
+  const d = new Date(death + 'T00:00:00');
+
+  if (Number.isNaN(b.getTime()) || Number.isNaN(d.getTime()) || d < b) {
+    return null;
+  }
+
+  let age = d.getFullYear() - b.getFullYear();
+
+  if (
+    d.getMonth() < b.getMonth() ||
+    (d.getMonth() === b.getMonth() && d.getDate() < b.getDate())
+  ) {
+    age--;
+  }
+
+  return age;
+}
+
+function formatDate(date) {
+  if (!date) return 'Non renseignée';
+
+  const value = new Date(date + 'T00:00:00');
+
+  if (Number.isNaN(value.getTime())) return 'Non renseignée';
+
+  return value.toLocaleDateString('fr-FR');
+}
+
+function renderMemorial() {
+  const grid = $('#memorialGrid');
+  const search = $('#memorialSearch');
+  const count = $('#memorialCount');
+
+  if (!grid) return;
+
+  const query = search ? search.value.trim().toLowerCase() : '';
+
+  const people = readPeople().filter(person => {
+    const text = [
+      person.name,
+      person.quartier,
+      person.place
+    ].join(' ').toLowerCase();
+
+    return text.includes(query);
+  });
+
+  if (count) {
+    count.textContent =
+      people.length + ' hommage' + (people.length > 1 ? 's' : '');
+  }
+
+  if (!people.length) {
+    grid.innerHTML = `
+      <div class="empty-state">
+        Aucune fiche trouvée. Les hommages validés apparaîtront ici.
+      </div>
+    `;
+    return;
+  }
+
+  const groups = {};
+
+  people.forEach(person => {
+    const quartier = person.quartier || 'Quartier non renseigné';
+
+    if (!groups[quartier]) {
+      groups[quartier] = [];
+    }
+
+    groups[quartier].push(person);
+  });
+
+  const sortedQuartiers = Object.keys(groups).sort((a, b) =>
+    a.localeCompare(b, 'fr', { numeric: true })
+  );
+
+  grid.innerHTML = sortedQuartiers.map(quartier => {
+    const cards = groups[quartier].map(person => {
+      const age = calculateAge(person.birth, person.death);
+
+      const photo = person.photo
+        ? `<img class="memorial-photo" src="${escapeHTML(person.photo)}" alt="Portrait de ${escapeHTML(person.name)}">`
+        : `<div class="memorial-photo photo-placeholder">👤</div>`;
+
+      return `
+        <article class="memorial-card">
+          ${photo}
+          <div class="memorial-info">
+            <h3>${escapeHTML(person.name)}</h3>
+            <p>Naissance : ${formatDate(person.birth)}</p>
+            <p>Décès : ${formatDate(person.death)}</p>
+            <p><strong>${age === null ? 'Âge non calculable' : age + ' ans'}</strong></p>
+            ${person.note ? `<p>${escapeHTML(person.note)}</p>` : ''}
+          </div>
+        </article>
+      `;
+    }).join('');
+
+    return `
+      <section class="memorial-group">
+        <h3 class="memorial-group-title">${escapeHTML(quartier)}</h3>
+        <div class="memorial-group-grid">
+          ${cards}
+        </div>
+      </section>
+    `;
+  }).join('');
+}
+
+// Recherche
+const searchInput = $('#memorialSearch');
+
+if (searchInput) {
+  searchInput.addEventListener('input', renderMemorial);
+}
+
+// Menu mobile
+const menuToggle = $('#menuToggle');
+const mainNav = $('#mainNav');
+
+if (menuToggle && mainNav) {
+  menuToggle.addEventListener('click', () => {
+    mainNav.classList.toggle('open');
+  });
+
+  mainNav.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      mainNav.classList.remove('open');
+    });
+  });
+}
+
+// Année automatique
+const year = $('#year');
+
+if (year) {
+  year.textContent = new Date().getFullYear();
+}
+
+// Affichage initial
 renderMemorial();
+
+// Actualisation lorsque la page redevient visible
+window.addEventListener('storage', event => {
+  if (event.key === KEY) {
+    renderMemorial();
+  }
+});
